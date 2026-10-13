@@ -1,0 +1,12 @@
+target/
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+kubeconfig
+.DS_Store
