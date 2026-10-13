@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.service.name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  type: {{ .Values.service.type }}
+
+  sessionAffinity: {{ .Values.service.sessionAffinity }}
+
+  {{- if eq .Values.service.sessionAffinity "ClientIP" }}
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: {{ .Values.service.timeoutSeconds }}
+  {{- end }}
+
+  selector:
+    app: {{ .Values.backend.name }}
+
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.targetPort }}
