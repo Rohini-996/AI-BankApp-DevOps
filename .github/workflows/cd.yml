@@ -1,0 +1,83 @@
+name: AI-Bankapp CD 
+
+on:
+  workflow_run:
+    workflows:
+      - AI-Bankapp CI
+    types:
+      - completed 
+    branches:
+      - main
+
+permissions: 
+  contents: read 
+  id-token: write
+
+env: 
+  AWS_REGION: us-east-2
+  ECR_REPOSITORY: ai-bankapp-dev-backend
+  EKS_CLUSTER_NAME: ai-bankapp-dev
+  K8S_NAMESPACE: bankapp
+
+jobs: 
+  deploy-to-eks:
+    if: github.event.workflow_run.conclusion == "success"
+    runs-on: ubuntu-latest 
+
+    steps: 
+      - name: Checkout Code 
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+     - name: Configure AWS Credentials 
+       uses: aws-action/configure-aws-credentials@v4
+       with:
+         role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+         aws-region: ${{ env.AWS_REGION }}    
+        
+     - name: Set Image Tag 
+       id: tag 
+       env: 
+          COMMIT_SHA: ${{ github.event.workflow_run.head_sha }}
+       run: echo "sha_short="${COMMIT_SHA::7}" >> "$GITHUB_OUTPUT"
+
+     - name: Set up kubectl
+       uses: azure/setup-kubectl@v4
+
+     - name: Set up Helm
+       uses: azure/setup-helm@v4
+
+     - name: Connect to EKS
+       run: |
+         aws eks update-kubeconfig \
+           --region "$AWS_REGION" \
+           -- name "$EKS_CLUSTER_NAME"
+     
+     - name: Verfiy ECR Image 
+       env:
+         IMAGE_TAG: ${{ steps.tag.output.sha_short }}
+       run: |
+         aws ecr describe-images \
+            --repository-name "$ECR_REPOSITORY" \
+            --image-ids imageTag="$IMAGE_TAG"
+
+      - name: Deploy With Helm 
+        env: 
+          IMAGE_TAG: ${{ steps.tag.outputs.sha_short }}
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+        run: |
+          helm upgrade --install bankapp ./helm/backend \
+            --namespace "$K8S_NAMESPACE" \
+            --set image.repository="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPOSITORY" \
+            --set image.tag="$IMAGE_TAG" \
+            --wait \
+            --timeout 5m
+
+       - name: Verify Deployment
+         run: |
+           kubectl rollout status deployment/bankapp \
+             -n "$K8S_NAMESPACE" \
+             --timeout=300s
+
+           kubectl get pods -n "$K8S_NAMESPACE"
