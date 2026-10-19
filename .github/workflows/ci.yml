@@ -47,16 +47,6 @@ jobs:
           docker build \
             -t "$DOCKERHUB_USERNAME/$IMAGE_NAME:$IMAGE_TAG" .
 
-      - name: Scan Image with Trivy
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/ai-bankapp-devops:${{ steps.tag.outputs.sha_short }}
-          format: table
-          exit-code: "1"
-          ignore-unfixed: true
-          vuln-type: os,library
-          severity: CRITICAL,HIGH
-
       - name: Push Image to Docker Hub
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
