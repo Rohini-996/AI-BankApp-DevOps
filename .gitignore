@@ -10,3 +10,9 @@ target/
 *.key
 kubeconfig
 .DS_Store
+
+# Local Kubernetes credentials
+k8s/secrets.yml
+
+# Maven build output
+target/
