@@ -16,3 +16,4 @@ k8s/secrets.yml
 
 # Maven build output
 target/
+actions-runner/
