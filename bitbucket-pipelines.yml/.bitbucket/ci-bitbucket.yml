@@ -1,0 +1,48 @@
+image: maven:3.9.9-eclipse-temurin-21
+
+pipelines:
+  branches:
+    main:
+      # CI - Build & Test 
+      - step:
+          name: "CI - Build & Test"
+          caches:
+            - maven 
+          script: 
+            - chmod +x mvnw 
+            - ./mvnw clean verify -B
+
+      # CI - Build and Push Image to Google Artifact Registry
+      - step:
+          name: "CI - Push Image to GAR"
+          image: google/cloud-sdk:slim
+          oidc: true 
+          script:
+            # Authenticate using Bitbucket OIDC
+            - echo "$BITBUCKET_STEP_OIDC_TOKEN" > /tmp/oidc-token
+            - >
+              gcloud iam workload-identity-pools create-cred-config 
+
+"projects/${GCP_PROJECT_NUMBER}/locations/global/workloadIdentityPools/${GCP_WIF_POOL_ID}/providers/${GCP_WIF_PROVIDER_ID}"
+          
+          --service-account="${GCP_CI_SERVICE_ACCOUNT}"
+          --credential-source-file="/tmp/oidc-token"
+          --output-file="/tmp/gcp-credentials.json"
+
+      - gcloud auth login --cred-file=/tmp/gcp-credentials.json
+      - gcloud config set project "$GCP_PROJECT_ID"
+
+      # Generate 7-character Git SHA
+      - export IMAGE_TAG=$(echo "BITBUCKET_COMMIT" | cut -c1-7)
+    
+      # Define Image URL 
+      - export IMAGE_URI="${GAR_LOCATION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPOSITORY}/${GAR_IMAGE}:${IMAGE_TAG}"
+
+      # Build and Push using Google Cloud Build 
+      - >
+        gcloud builds submit 
+        --tag="IMAGE_URI"
+        --project="$GCP_PROJECT_ID"
+        .
+
+      - echo "Image Successfully Pushed: $IMAGE_URL"
